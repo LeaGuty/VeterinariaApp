@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">VeterinariaApp</string>
+    <string name="title_activity_gestion">GestionActivity</string>
+</resources>
