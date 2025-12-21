@@ -29,8 +29,10 @@ import com.miempresa.veterinaria.service.RecordatorioService
 import com.miempresa.veterinaria.ui.theme.VeterinariaAppTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         setContent {
             VeterinariaAppTheme {
                 Surface(

@@ -16,7 +16,7 @@ class VeterinariaRepository {
     // Datos iniciales de prueba (para no empezar con la app vacía)
     init {
         val cliente1 = Cliente("Juan Pérez", "juan@mail.com", "+56912345678", "12.345.678-5")
-        val cliente2 = Cliente("Maria Silva", "maria@mail.com", "+56987654321", "9.876.543-3a")
+        val cliente2 = Cliente("Maria Silva", "maria@mail.com", "+56987654321", "9.876.543-3")
         clientes.add(cliente1)
         clientes.add(cliente2)
 
