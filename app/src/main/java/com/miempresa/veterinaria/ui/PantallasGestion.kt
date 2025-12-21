@@ -1,22 +1,24 @@
 package com.miempresa.veterinaria.ui
 
+import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,8 +28,9 @@ import com.miempresa.veterinaria.viewmodel.MainViewModel
 
 @Composable
 fun PantallaGestion(viewModel: MainViewModel) {
-    var pestanaActual by remember { mutableStateOf(0) }
+    var pestanaActual by remember { mutableIntStateOf(0) }
     val titulos = listOf("Clientes", "Mascotas", "Agenda")
+    var clienteAEditar by remember { mutableStateOf<Cliente?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = pestanaActual) {
@@ -40,159 +43,186 @@ fun PantallaGestion(viewModel: MainViewModel) {
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            when (pestanaActual) {
-                0 -> {
-                    // Vista combinada de Formulario y Lista de Clientes (lo que ya tenías)
-                    Column {
-                        FormularioCliente(viewModel)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        ListaClientes(viewModel)
+        // Navegación entre pestañas con Crossfade
+        Crossfade(
+            targetState = pestanaActual,
+            animationSpec = tween(durationMillis = 500),
+            label = "CestañasTransition"
+        ) { targetPestana ->
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                when (targetPestana) {
+                    0 -> {
+                        Column {
+                            FormularioCliente(viewModel, clienteAEditar) { clienteAEditar = null }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(16.dp))
+                            ListaClientes(viewModel, onEditar = { cliente -> clienteAEditar = cliente })
+                        }
                     }
+                    1 -> PantallaMascotas(viewModel)
+                    2 -> PantallaConsultas(viewModel)
                 }
-                1 -> PantallaMascotas(viewModel)
-                2 -> PantallaConsultas(viewModel)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun FormularioCliente(
+    viewModel: MainViewModel,
+    clienteAEditar: Cliente?,
+    onLimpiarEdicion: () -> Unit
+) {
+    val context = LocalContext.current
+    var nombre by remember { mutableStateOf("") }
+    var correo by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var rut by remember { mutableStateOf("") }
+
+    LaunchedEffect(clienteAEditar) {
+        if (clienteAEditar != null) {
+            nombre = clienteAEditar.nombre
+            correo = clienteAEditar.correo
+            telefono = clienteAEditar.telefono
+            rut = clienteAEditar.rut
+        } else {
+            nombre = ""; correo = ""; telefono = ""; rut = ""
+        }
+    }
+
+    val formularioValido = Validaciones.esTextoValido(nombre) &&
+            Validaciones.esCorreoValido(correo) &&
+            Validaciones.esTelefonoValido(telefono) &&
+            Validaciones.esRutValido(rut)
+
+    // .animateContentSize() para cambios fluidos de tamaño
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.animateContentSize()
+    ) {
+        // AnimatedContent para el título dinámico
+        AnimatedContent(
+            targetState = clienteAEditar == null,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                        scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)) with
+                        fadeOut(animationSpec = tween(90))
+            },
+            label = "TituloFormulario"
+        ) { esNuevo ->
+            Text(
+                if (esNuevo) "Nuevo Cliente" else "Editando Cliente",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (esNuevo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+            )
+        }
+
+        OutlinedTextField(
+            value = nombre, onValueChange = { nombre = it },
+            label = { Text("Nombre Completo") }, modifier = Modifier.fillMaxWidth(),
+            leadingIcon = { Icon(Icons.Default.Person, null) }
+        )
+        OutlinedTextField(
+            value = correo, onValueChange = { correo = it },
+            label = { Text("Correo") }, modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            isError = correo.isNotEmpty() && !Validaciones.esCorreoValido(correo)
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = telefono, onValueChange = { telefono = it },
+                label = { Text("Teléfono") }, modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+            )
+            OutlinedTextField(
+                value = rut, onValueChange = { rut = it },
+                label = { Text("RUT") }, modifier = Modifier.weight(1f),
+                isError = rut.isNotEmpty() && !Validaciones.esRutValido(rut),
+                enabled = clienteAEditar == null
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    val nuevoCliente = Cliente(nombre, correo, telefono, rut)
+                    if (clienteAEditar == null) {
+                        viewModel.registrarCliente(nuevoCliente)
+                        Toast.makeText(context, "Cliente Guardado", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.editarCliente(clienteAEditar, nuevoCliente)
+                        Toast.makeText(context, "Cliente Actualizado", Toast.LENGTH_SHORT).show()
+                        onLimpiarEdicion()
+                    }
+                    if (clienteAEditar == null) { nombre = ""; correo = ""; telefono = ""; rut = "" }
+                },
+                modifier = Modifier.weight(1f),
+                enabled = formularioValido
+            ) {
+                Text(if (clienteAEditar == null) "Guardar" else "Actualizar")
+            }
+
+            AnimatedVisibility(visible = clienteAEditar != null) {
+                OutlinedButton(onClick = { onLimpiarEdicion() }) {
+                    Text("Cancelar")
+                }
             }
         }
     }
 }
 
 @Composable
-fun FormularioCliente(viewModel: MainViewModel) {
+fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
+    val listaFiltrada = viewModel.obtenerClientesFiltrados()
+    val textoBusqueda by viewModel.busquedaCliente
     val context = LocalContext.current
 
-    // Variables del formulario
-    var nombre by remember { mutableStateOf("") }
-    var correo by remember { mutableStateOf("") }
-    var telefono by remember { mutableStateOf("") }
-    var rut by remember { mutableStateOf("") }
-
-    // --- CORRECCIÓN AQUÍ ---
-    // Ahora el botón solo se activa si TODAS las validaciones pasan, incluido el RUT
-    val formularioValido = Validaciones.esTextoValido(nombre) &&
-            Validaciones.esCorreoValido(correo) &&
-            Validaciones.esTelefonoValido(telefono) &&
-            Validaciones.esRutValido(rut) // <--- ¡Esto faltaba!
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Nuevo Cliente", style = MaterialTheme.typography.headlineSmall)
-
+    Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = nombre,
-            onValueChange = { nombre = it },
-            label = { Text("Nombre Completo") },
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Person, null) }
+            value = textoBusqueda,
+            onValueChange = { viewModel.busquedaCliente.value = it },
+            label = { Text("Buscar por Nombre o RUT") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            singleLine = true
         )
 
-        OutlinedTextField(
-            value = correo,
-            onValueChange = { correo = it },
-            label = { Text("Correo Electrónico") },
-            modifier = Modifier.fillMaxWidth(),
-            isError = correo.isNotEmpty() && !Validaciones.esCorreoValido(correo),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-        )
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(listaFiltrada) { index, cliente ->
+                // Animación de entrada para cada tarjeta
+                var visible by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { visible = true }
 
-        OutlinedTextField(
-            value = telefono,
-            onValueChange = { telefono = it },
-            label = { Text("Teléfono (+56...)") },
-            modifier = Modifier.fillMaxWidth(),
-            isError = telefono.isNotEmpty() && !Validaciones.esTelefonoValido(telefono),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-        )
-
-        // --- CAMPO RUT MEJORADO ---
-        OutlinedTextField(
-            value = rut,
-            onValueChange = { rut = it },
-            label = { Text("RUT (ej: 12.345.678-9)") },
-            modifier = Modifier.fillMaxWidth(),
-            // Se marca error si no está vacío Y el RUT no es válido
-            isError = rut.isNotEmpty() && !Validaciones.esRutValido(rut)
-        )
-
-        Button(
-            onClick = {
-                val nuevoCliente = Cliente(nombre, correo, telefono, rut)
-                viewModel.registrarCliente(nuevoCliente)
-
-                Toast.makeText(context, "Cliente Guardado!", Toast.LENGTH_SHORT).show()
-
-                // Limpiar campos
-                nombre = ""
-                correo = ""
-                telefono = ""
-                rut = ""
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = formularioValido // Ahora respeta la validación del RUT
-        ) {
-            Text("Guardar Cliente")
-        }
-    }
-}
-
-@Composable
-fun ListaClientes(viewModel: MainViewModel) {
-    val listaClientes by viewModel.clientes
-    val context = LocalContext.current // Necesario para lanzar el Intent
-
-    if (listaClientes.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No hay clientes registrados aún.")
-        }
-    } else {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(listaClientes) { cliente ->
-                Card(
-                    elevation = CardDefaults.cardElevation(4.dp),
-                    modifier = Modifier.fillMaxWidth()
+                AnimatedVisibility(
+                    visible = visible,
+                    enter = fadeIn(tween(500, delayMillis = index * 50)) +
+                            slideInHorizontally(tween(500, delayMillis = index * 50)) { -it / 2 }
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Datos del Cliente
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = cliente.nombre, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 18.sp)
-                            Text(text = "📧 ${cliente.correo}")
-                            Text(text = "📱 ${cliente.telefono}")
-                        }
-
-                        // Botón de Compartir (Intent Implícito)
-                        IconButton(onClick = {
-                            val textoACompartir = """
-                                🐾 Ficha de Cliente 🐾
-                                Nombre: ${cliente.nombre}
-                                Contacto: ${cliente.telefono}
-                                Correo: ${cliente.correo}
-                            """.trimIndent()
-
-                            // Crear el Intent Implícito
-                            val intent = android.content.Intent().apply {
-                                action = android.content.Intent.ACTION_SEND
-                                putExtra(android.content.Intent.EXTRA_TEXT, textoACompartir)
-                                type = "text/plain"
+                    Card(elevation = CardDefaults.cardElevation(2.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(cliente.nombre, fontWeight = FontWeight.Bold)
+                                Text(cliente.rut, style = MaterialTheme.typography.bodySmall)
+                                Text(cliente.correo, style = MaterialTheme.typography.bodySmall)
                             }
-                            // Lanzar el menú de compartir del sistema
-                            val shareIntent = android.content.Intent.createChooser(intent, "Compartir cliente vía...")
-                            context.startActivity(shareIntent)
-                        }) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Share,
-                                contentDescription = "Compartir",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            IconButton(onClick = { onEditar(cliente) }) {
+                                Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.tertiary)
+                            }
+                            IconButton(onClick = {
+                                val intent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, "Cliente: ${cliente.nombre} - ${cliente.telefono}")
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Compartir"))
+                            }) {
+                                Icon(Icons.Default.Share, "Compartir", tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }

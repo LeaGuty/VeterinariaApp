@@ -1,124 +1,109 @@
 package com.miempresa.veterinaria.ui
 
+import android.Manifest
 import android.content.Intent
-import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pets
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.miempresa.veterinaria.receiver.ModoAvionReceiver
+import androidx.core.content.ContextCompat
+import com.miempresa.veterinaria.R
 import com.miempresa.veterinaria.service.RecordatorioService
+import com.miempresa.veterinaria.ui.theme.VeterinariaAppTheme
 
 class MainActivity : ComponentActivity() {
-
-    // Instancia del Receiver
-    private val modoAvionReceiver = ModoAvionReceiver()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            MaterialTheme {
-                // Registramos el Receiver cuando la pantalla está activa
-                RegistroReceiver(modoAvionReceiver, this)
-
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MenuPrincipalScreen(modifier = Modifier.padding(innerPadding))
+            VeterinariaAppTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    PantallaInicio()
                 }
             }
         }
     }
 }
 
-// Función auxiliar para manejar el ciclo de vida del Receiver (registro dinámico)
 @Composable
-fun RegistroReceiver(receiver: ModoAvionReceiver, activity: ComponentActivity) {
-    DisposableEffect(Unit) {
-        val intentFilter = IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED)
-        activity.registerReceiver(receiver, intentFilter)
-
-        onDispose {
-            activity.unregisterReceiver(receiver)
-        }
-    }
-}
-
-@Composable
-fun MenuPrincipalScreen(modifier: Modifier = Modifier) {
+fun PantallaInicio() {
     val context = LocalContext.current
 
+    // Lógica para pedir permisos de notificación (Android 13+)
+    val launcherPermisos = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { esConcedido ->
+            if (esConcedido) {
+                // Iniciar servicio si dan permiso
+                val intentService = Intent(context, RecordatorioService::class.java)
+                context.startService(intentService)
+            }
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permiso = Manifest.permission.POST_NOTIFICATIONS
+            if (ContextCompat.checkSelfPermission(context, permiso) == PackageManager.PERMISSION_GRANTED) {
+                // Ya tiene permiso, iniciar servicio
+                val intentService = Intent(context, RecordatorioService::class.java)
+                context.startService(intentService)
+            } else {
+                // Pedir permiso
+                launcherPermisos.launch(permiso)
+            }
+        } else {
+            // Android antiguo, iniciar directo
+            val intentService = Intent(context, RecordatorioService::class.java)
+            context.startService(intentService)
+        }
+    }
+
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Pets,
-            contentDescription = "Logo Veterinaria",
-            modifier = Modifier.size(100.dp),
-            tint = MaterialTheme.colorScheme.primary
+        Image(
+            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+            contentDescription = "Logo",
+            modifier = Modifier.size(150.dp)
         )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
+        Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Veterinaria App",
-            fontSize = 32.sp,
+            fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        // Botón 1: Gestión (Activity)
-        BotonMenu(texto = "Gestión Veterinaria") {
-            val intent = Intent(context, GestionActivity::class.java)
-            context.startActivity(intent)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Botón 2: Servicio (Service) - ¡NUEVO!
-        OutlinedButton(
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(
             onClick = {
-                // Iniciar el servicio explícitamente
-                val intentService = Intent(context, RecordatorioService::class.java)
-                context.startService(intentService)
+                val intent = Intent(context, GestionActivity::class.java)
+                context.startActivity(intent)
             },
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
-            Text("Simular Sincronización (Servicio)")
+            Text("IR A GESTIÓN")
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Prueba el Receiver activando el Modo Avión en tu barra de estado",
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-fun BotonMenu(texto: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(56.dp)
-    ) {
-        Text(text = texto, fontSize = 18.sp)
     }
 }

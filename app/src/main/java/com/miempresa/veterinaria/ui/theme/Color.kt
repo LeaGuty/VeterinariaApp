@@ -1,11 +1,15 @@
-package com.miempresa.veterinaria.ui.theme
+    package com.miempresa.veterinaria.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Paleta Veterinaria (Teal & Orange)
+val VetPrimary = Color(0xFF00796B)       // Teal Oscuro (Principal)
+val VetOnPrimary = Color(0xFFFFFFFF)     // Texto sobre principal
+val VetPrimaryContainer = Color(0xFFB2DFDB) // Fondo suave de botones/cards
+val VetSecondary = Color(0xFFE65100)     // Naranja (Acción/Acento)
+val VetOnSecondary = Color(0xFFFFFFFF)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val VetTertiary = Color(0xFF004D40)      // Verde muy oscuro (Texto títulos)
+val VetBackground = Color(0xFFF5F9F8)    // Fondo casi blanco con tinte menta
+val VetSurface = Color(0xFFFFFFFF)       // Superficie de tarjetas
+val VetError = Color(0xFFD32F2F)         // Rojo error estándar

@@ -15,8 +15,8 @@ class VeterinariaRepository {
 
     // Datos iniciales de prueba (para no empezar con la app vacía)
     init {
-        val cliente1 = Cliente("Juan Pérez", "juan@mail.com", "+56912345678", "12.345.678-9")
-        val cliente2 = Cliente("Maria Silva", "maria@mail.com", "+56987654321", "9.876.543-2")
+        val cliente1 = Cliente("Juan Pérez", "juan@mail.com", "+56912345678", "12.345.678-5")
+        val cliente2 = Cliente("Maria Silva", "maria@mail.com", "+56987654321", "9.876.543-3a")
         clientes.add(cliente1)
         clientes.add(cliente2)
 
@@ -74,5 +74,21 @@ class VeterinariaRepository {
 
     fun eliminarConsulta(consulta: Consulta) {
         consultas.remove(consulta)
+    }
+
+    fun actualizarCliente(clienteAntiguo: Cliente, clienteNuevo: Cliente) {
+        val index = clientes.indexOf(clienteAntiguo)
+        if (index != -1) {
+            clientes[index] = clienteNuevo
+            // También actualizamos las mascotas asociadas a este cliente (si cambió nombre/foto)
+            mascotas.replaceAll { if (it.dueno == clienteAntiguo) it.copy(dueno = clienteNuevo) else it }
+        }
+    }
+
+    fun actualizarMascota(mascotaAntigua: Mascota, mascotaNueva: Mascota) {
+        val index = mascotas.indexOf(mascotaAntigua)
+        if (index != -1) {
+            mascotas[index] = mascotaNueva
+        }
     }
 }

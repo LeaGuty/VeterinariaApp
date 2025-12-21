@@ -21,6 +21,9 @@ class MainViewModel : ViewModel() {
 
     val isLoading = mutableStateOf(false) // Para mostrar cargando
 
+    var busquedaCliente = mutableStateOf("")
+    var busquedaMascota = mutableStateOf("")
+
     init {
         cargarDatos()
     }
@@ -74,5 +77,38 @@ class MainViewModel : ViewModel() {
     fun borrarConsulta(consulta: Consulta) {
         repository.eliminarConsulta(consulta)
         viewModelScope.launch { consultas.value = repository.obtenerConsultas() }
+    }
+
+    fun editarCliente(antiguo: Cliente, nuevo: Cliente) {
+        repository.actualizarCliente(antiguo, nuevo)
+        viewModelScope.launch {
+            clientes.value = repository.obtenerClientes()
+            mascotas.value = repository.obtenerMascotas() // Actualizar mascotas también
+        }
+    }
+
+    fun editarMascota(antigua: Mascota, nueva: Mascota) {
+        repository.actualizarMascota(antigua, nueva)
+        viewModelScope.launch { mascotas.value = repository.obtenerMascotas() }
+    }
+    fun obtenerClientesFiltrados(): List<Cliente> {
+        val query = busquedaCliente.value.lowercase().trim()
+        if (query.isEmpty()) return clientes.value
+
+        return clientes.value.filter { cliente ->
+            cliente.nombre.lowercase().contains(query) ||
+                    cliente.rut.contains(query)
+        }
+    }
+
+    // 3. Función para filtrar Mascotas (por Nombre o Tipo)
+    fun obtenerMascotasFiltradas(): List<Mascota> {
+        val query = busquedaMascota.value.lowercase().trim()
+        if (query.isEmpty()) return mascotas.value
+
+        return mascotas.value.filter { mascota ->
+            mascota.nombre.lowercase().contains(query) ||
+                    mascota.tipo.lowercase().contains(query)
+        }
     }
 }
