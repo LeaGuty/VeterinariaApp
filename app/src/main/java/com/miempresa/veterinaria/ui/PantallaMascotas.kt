@@ -27,6 +27,7 @@ import com.miempresa.veterinaria.viewmodel.MainViewModel
 @Composable
 fun PantallaMascotas(viewModel: MainViewModel) {
     val context = LocalContext.current
+    // Obtenemos el valor de la lista de clientes desde el State
     val listaClientes by viewModel.clientes
 
     var mascotaAEditar by remember { mutableStateOf<Mascota?>(null) }
@@ -92,7 +93,16 @@ fun PantallaMascotas(viewModel: MainViewModel) {
             Button(
                 onClick = {
                     if (nombre.isNotBlank() && clienteSeleccionado != null && edadStr.toIntOrNull() != null) {
-                        val nuevaMascota = Mascota(nombre, tipo, raza, edadStr.toInt(), clienteSeleccionado!!)
+                        // CORRECCIÓN AQUÍ: Usamos argumentos nombrados para evitar errores con el 'id'
+                        val nuevaMascota = Mascota(
+                            nombre = nombre,
+                            tipo = tipo,
+                            raza = raza,
+                            edad = edadStr.toInt(),
+                            dueno = clienteSeleccionado!!
+                            // El id se pone en 0 automáticamente por defecto
+                        )
+
                         if (mascotaAEditar == null) {
                             viewModel.registrarMascota(nuevaMascota)
                             Toast.makeText(context, "Mascota Creada", Toast.LENGTH_SHORT).show()
@@ -113,6 +123,7 @@ fun PantallaMascotas(viewModel: MainViewModel) {
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
+        // Corrección: Accedemos al valor del State
         val textoBusqueda by viewModel.busquedaMascota
         OutlinedTextField(
             value = textoBusqueda,

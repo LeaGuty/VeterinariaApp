@@ -4,6 +4,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
@@ -18,8 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.miempresa.veterinaria.model.*
 import com.miempresa.veterinaria.viewmodel.MainViewModel
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +47,13 @@ fun PantallaConsultas(viewModel: MainViewModel) {
 
     // Calcular horas disponibles dinámicamente
     val horasDisponibles = remember(vetSel, fechaSel, listaConsultas) {
-        vetSel?.obtenerHorasDisponibles(fechaSel, listaConsultas) ?: emptyList()
+        val disponibles = vetSel?.obtenerHorasDisponibles(fechaSel, listaConsultas) ?: emptyList()
+        // Filtro adicional: si es hoy, no mostrar horas pasadas
+        if (fechaSel == LocalDate.now()) {
+            disponibles.filter { it.isAfter(LocalTime.now()) }
+        } else {
+            disponibles
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -57,7 +66,10 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             }
             DropdownMenu(expanded = expandirMascota, onDismissRequest = { expandirMascota = false }) {
                 listaMascotas.forEach { mascota ->
-                    DropdownMenuItem(text = { Text(mascota.nombre) }, onClick = { mascotaSel = mascota; expandirMascota = false })
+                    DropdownMenuItem(
+                        text = { Text("${mascota.nombre} (${mascota.dueno.nombre})") },
+                        onClick = { mascotaSel = mascota; expandirMascota = false }
+                    )
                 }
             }
         }
@@ -83,13 +95,21 @@ fun PantallaConsultas(viewModel: MainViewModel) {
         }
 
         if (mostrarCalendario) {
-            val datePickerState = rememberDatePickerState()
+            val datePickerState = rememberDatePickerState(
+                selectableDates = object : SelectableDates {
+                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                        val startOfToday = LocalDate.now().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+                        return utcTimeMillis >= startOfToday
+                    }
+                }
+            )
             DatePickerDialog(
                 onDismissRequest = { mostrarCalendario = false },
                 confirmButton = {
                     TextButton(onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            fechaSel = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                            fechaSel = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                            horaSel = null
                         }
                         mostrarCalendario = false
                     }) { Text("Aceptar") }
@@ -99,15 +119,19 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             }
         }
 
-        // 4. Horas Disponibles (Lista horizontal)
+        // 4. Horas Disponibles
         Text("Horarios Disponibles:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         if (vetSel == null) {
             Text("Selecciona un veterinario primero", color = MaterialTheme.colorScheme.secondary)
         } else if (horasDisponibles.isEmpty()) {
-            Text("No hay horas para esta fecha", color = MaterialTheme.colorScheme.error)
+            Text("No hay horas disponibles para esta fecha", color = MaterialTheme.colorScheme.error)
         } else {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                horasDisponibles.take(4).forEach { hora ->
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                items(horasDisponibles) { hora ->
                     FilterChip(
                         selected = horaSel == hora,
                         onClick = { horaSel = hora },
@@ -122,7 +146,16 @@ fun PantallaConsultas(viewModel: MainViewModel) {
         Button(
             onClick = {
                 if (mascotaSel != null && vetSel != null && horaSel != null) {
-                    val nuevaConsulta = Consulta(mascotaSel!!, vetSel!!, fechaSel, horaSel!!, TipoConsulta.GENERAL, motivo)
+                    val nuevaConsulta = Consulta(
+                        id = 0,
+                        mascota = mascotaSel!!,
+                        veterinario = vetSel!!,
+                        fecha = fechaSel,
+                        hora = horaSel!!,
+                        tipoConsulta = TipoConsulta.GENERAL,
+                        motivoConsulta = motivo
+                    )
+
                     viewModel.agendarConsulta(nuevaConsulta)
                     Toast.makeText(context, "Cita Agendada", Toast.LENGTH_SHORT).show()
                     motivo = ""; horaSel = null
@@ -136,7 +169,7 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             Text("Confirmar Cita")
         }
 
-        Divider(modifier = Modifier.padding(vertical = 16.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
         // Lista de Citas Agendadas
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,19 +184,19 @@ fun PantallaConsultas(viewModel: MainViewModel) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("${consulta.fecha} - ${consulta.hora}", fontWeight = FontWeight.Bold)
-                            Text("Paciente: ${consulta.mascota.nombre}")
+                            Text("Paciente: ${consulta.mascota.nombre}", fontWeight = FontWeight.Medium)
+                            Text("Dueño: ${consulta.mascota.dueno.nombre}", style = MaterialTheme.typography.bodySmall)
                             Text("Vet: ${consulta.veterinario.nombre}", style = MaterialTheme.typography.bodySmall)
                             Text("Motivo: ${consulta.motivoConsulta}", style = MaterialTheme.typography.bodySmall)
                         }
 
-                        // Botones de Acción
                         Row {
-                            // Botón COMPARTIR (Intent Implícito)
                             IconButton(onClick = {
                                 val resumen = """
                                     📅 Cita Veterinaria Agendada
                                     Fecha: ${consulta.fecha} a las ${consulta.hora}
                                     Paciente: ${consulta.mascota.nombre}
+                                    Dueño: ${consulta.mascota.dueno.nombre}
                                     Veterinario: ${consulta.veterinario.nombre}
                                     Motivo: ${consulta.motivoConsulta}
                                 """.trimIndent()
@@ -179,7 +212,6 @@ fun PantallaConsultas(viewModel: MainViewModel) {
                                 Icon(Icons.Default.Share, contentDescription = "Compartir", tint = MaterialTheme.colorScheme.primary)
                             }
 
-                            // Botón BORRAR
                             IconButton(onClick = { viewModel.borrarConsulta(consulta) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = MaterialTheme.colorScheme.error)
                             }

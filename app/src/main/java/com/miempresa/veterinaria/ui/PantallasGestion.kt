@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
@@ -178,6 +179,7 @@ fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
     val listaFiltrada = viewModel.obtenerClientesFiltrados()
     val textoBusqueda by viewModel.busquedaCliente
     val context = LocalContext.current
+    var clienteAEliminar by remember { mutableStateOf<Cliente?>(null) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -223,10 +225,38 @@ fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
                             }) {
                                 Icon(Icons.Default.Share, "Compartir", tint = MaterialTheme.colorScheme.primary)
                             }
+                            IconButton(onClick = { clienteAEliminar = cliente }) {
+                                Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Diálogo de confirmación para eliminar
+    clienteAEliminar?.let { cliente ->
+        AlertDialog(
+            onDismissRequest = { clienteAEliminar = null },
+            title = { Text("Eliminar Cliente") },
+            text = { Text("¿Estás seguro de que deseas eliminar a ${cliente.nombre}? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.borrarCliente(cliente)
+                        clienteAEliminar = null
+                        Toast.makeText(context, "Cliente eliminado", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { clienteAEliminar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }

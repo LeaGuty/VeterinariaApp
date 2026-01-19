@@ -1,94 +1,149 @@
 package com.miempresa.veterinaria.data
 
+import android.net.Uri
+import com.miempresa.veterinaria.data.dao.VeterinariaDao
+import com.miempresa.veterinaria.data.entity.*
 import com.miempresa.veterinaria.model.Cliente
 import com.miempresa.veterinaria.model.Consulta
 import com.miempresa.veterinaria.model.Mascota
+import com.miempresa.veterinaria.model.TipoConsulta
 import com.miempresa.veterinaria.model.Veterinario
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-class VeterinariaRepository {
+class VeterinariaRepository(private val dao: VeterinariaDao) {
 
-    // Listas mutables para simular una base de datos en memoria
-    private val clientes = mutableListOf<Cliente>()
-    private val mascotas = mutableListOf<Mascota>()
-    private val consultas = mutableListOf<Consulta>()
-
-    // Datos iniciales de prueba (para no empezar con la app vacía)
-    init {
-        val cliente1 = Cliente("Juan Pérez", "juan@mail.com", "+56912345678", "12.345.678-5")
-        val cliente2 = Cliente("Maria Silva", "maria@mail.com", "+56987654321", "9.876.543-3")
-        clientes.add(cliente1)
-        clientes.add(cliente2)
-
-        val mascota1 = Mascota("Firulais", "Perro", "Mestizo", 3, cliente1)
-        val mascota2 = Mascota("Mishina", "Gato", "Siames", 2, cliente2)
-        mascotas.add(mascota1)
-        mascotas.add(mascota2)
+    // --- Clientes ---
+    val clientes: Flow<List<Cliente>> = dao.obtenerClientes().map { entities ->
+        entities.map { entity ->
+            Cliente(entity.nombre, entity.correo, entity.telefono, entity.rut, entity.fotoUri?.let { Uri.parse(it) })
+        }
     }
 
-    // Funciones para obtener datos (simulamos un retraso de red con 'delay')
-    suspend fun obtenerClientes(): List<Cliente> {
-        delay(500) // Simula que tarda 1 segundo en cargar
-        return clientes.toList()
+    suspend fun agregarCliente(cliente: Cliente) {
+        val entity = ClienteEntity(cliente.rut, cliente.nombre, cliente.correo, cliente.telefono, cliente.fotoUri?.toString())
+        dao.insertarCliente(entity)
     }
 
-    suspend fun obtenerMascotas(): List<Mascota> {
-        delay(500)
-        return mascotas.toList()
+    suspend fun eliminarCliente(cliente: Cliente) {
+        val entity = ClienteEntity(cliente.rut, cliente.nombre, cliente.correo, cliente.telefono, cliente.fotoUri?.toString())
+        dao.eliminarCliente(entity)
     }
 
-    suspend fun obtenerConsultas(): List<Consulta> {
-        delay(500)
-        return consultas.toList()
+    suspend fun actualizarCliente(antiguo: Cliente, nuevo: Cliente) {
+        if (antiguo.rut != nuevo.rut) eliminarCliente(antiguo)
+        agregarCliente(nuevo)
+    }
+
+    // --- Mascotas ---
+    val mascotas: Flow<List<Mascota>> = dao.obtenerMascotasConCliente().map { relations ->
+        relations.map { rel ->
+            val duenoModel = Cliente(
+                rel.cliente.nombre, rel.cliente.correo, rel.cliente.telefono, rel.cliente.rut, rel.cliente.fotoUri?.let { Uri.parse(it) }
+            )
+            Mascota(
+                id = rel.mascota.id,
+                nombre = rel.mascota.nombre,
+                tipo = rel.mascota.tipo,
+                raza = rel.mascota.raza,
+                edad = rel.mascota.edad,
+                dueno = duenoModel,
+                fotoUri = rel.mascota.fotoUri?.let { Uri.parse(it) }
+            )
+        }
+    }
+
+    suspend fun agregarMascota(mascota: Mascota) {
+        val entity = MascotaEntity(
+            id = mascota.id,
+            nombre = mascota.nombre,
+            tipo = mascota.tipo,
+            raza = mascota.raza,
+            edad = mascota.edad,
+            duenoRut = mascota.dueno.rut,
+            fotoUri = mascota.fotoUri?.toString()
+        )
+        dao.insertarMascota(entity)
+    }
+
+    suspend fun eliminarMascota(mascota: Mascota) {
+        val entity = MascotaEntity(
+            id = mascota.id,
+            nombre = mascota.nombre,
+            tipo = mascota.tipo,
+            raza = mascota.raza,
+            edad = mascota.edad,
+            duenoRut = mascota.dueno.rut,
+            fotoUri = mascota.fotoUri?.toString()
+        )
+        dao.eliminarMascota(entity)
+    }
+
+    suspend fun actualizarMascota(antigua: Mascota, nueva: Mascota) {
+        agregarMascota(nueva)
+    }
+
+    // --- Consultas ---
+    val consultas: Flow<List<Consulta>> = dao.obtenerConsultasConDetalles().map { relations ->
+        relations.map { rel ->
+            val duenoModel = Cliente(
+                rel.mascotaConCliente.cliente.nombre,
+                rel.mascotaConCliente.cliente.correo,
+                rel.mascotaConCliente.cliente.telefono,
+                rel.mascotaConCliente.cliente.rut,
+                rel.mascotaConCliente.cliente.fotoUri?.let { Uri.parse(it) }
+            )
+            val mascotaModel = Mascota(
+                id = rel.mascotaConCliente.mascota.id,
+                nombre = rel.mascotaConCliente.mascota.nombre,
+                tipo = rel.mascotaConCliente.mascota.tipo,
+                raza = rel.mascotaConCliente.mascota.raza,
+                edad = rel.mascotaConCliente.mascota.edad,
+                dueno = duenoModel,
+                fotoUri = rel.mascotaConCliente.mascota.fotoUri?.let { Uri.parse(it) }
+            )
+            val vetModel = Veterinario(rel.consulta.veterinarioNombre, "General")
+
+            Consulta(
+                id = rel.consulta.id,
+                mascota = mascotaModel,
+                veterinario = vetModel,
+                fecha = rel.consulta.fecha,
+                hora = rel.consulta.hora,
+                tipoConsulta = TipoConsulta.GENERAL,
+                motivoConsulta = rel.consulta.motivo,
+                observaciones = rel.consulta.observaciones
+            )
+        }
+    }
+
+    suspend fun agregarConsulta(consulta: Consulta) {
+        val entity = ConsultaEntity(
+            id = consulta.id,
+            mascotaId = consulta.mascota.id,
+            veterinarioNombre = consulta.veterinario.nombre,
+            fecha = consulta.fecha,
+            hora = consulta.hora,
+            motivo = consulta.motivoConsulta,
+            observaciones = consulta.observaciones
+        )
+        dao.insertarConsulta(entity)
+    }
+
+    suspend fun eliminarConsulta(consulta: Consulta) {
+        val entity = ConsultaEntity(
+            id = consulta.id,
+            mascotaId = consulta.mascota.id,
+            veterinarioNombre = consulta.veterinario.nombre,
+            fecha = consulta.fecha,
+            hora = consulta.hora,
+            motivo = consulta.motivoConsulta,
+            observaciones = consulta.observaciones
+        )
+        dao.eliminarConsulta(entity)
     }
 
     fun obtenerVeterinarios(): List<Veterinario> {
-        return listOf(
-            Veterinario("Dr. Simi", "General"),
-            Veterinario("Dra. Polo", "Cirugía")
-        )
-    }
-
-    // Funciones para agregar datos
-    fun agregarCliente(cliente: Cliente) {
-        clientes.add(cliente)
-    }
-
-    fun agregarMascota(mascota: Mascota) {
-        mascotas.add(mascota)
-    }
-
-    fun agregarConsulta(consulta: Consulta) {
-        consultas.add(consulta)
-    }
-
-    fun eliminarCliente(cliente: Cliente) {
-        clientes.remove(cliente)
-        // También borramos las mascotas de ese cliente para mantener consistencia
-        mascotas.removeAll { it.dueno == cliente }
-    }
-
-    fun eliminarMascota(mascota: Mascota) {
-        mascotas.remove(mascota)
-    }
-
-    fun eliminarConsulta(consulta: Consulta) {
-        consultas.remove(consulta)
-    }
-
-    fun actualizarCliente(clienteAntiguo: Cliente, clienteNuevo: Cliente) {
-        val index = clientes.indexOf(clienteAntiguo)
-        if (index != -1) {
-            clientes[index] = clienteNuevo
-            // También actualizamos las mascotas asociadas a este cliente (si cambió nombre/foto)
-            mascotas.replaceAll { if (it.dueno == clienteAntiguo) it.copy(dueno = clienteNuevo) else it }
-        }
-    }
-
-    fun actualizarMascota(mascotaAntigua: Mascota, mascotaNueva: Mascota) {
-        val index = mascotas.indexOf(mascotaAntigua)
-        if (index != -1) {
-            mascotas[index] = mascotaNueva
-        }
+        return listOf(Veterinario("Dr. Simi", "General"), Veterinario("Dra. Polo", "Cirugía"))
     }
 }

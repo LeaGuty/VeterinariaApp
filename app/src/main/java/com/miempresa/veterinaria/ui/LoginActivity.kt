@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
@@ -22,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -55,6 +58,7 @@ class LoginActivity : ComponentActivity() {
 @Composable
 fun PantallaLogin(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     // Estados del formulario
     var correo by remember { mutableStateOf("") }
@@ -66,6 +70,16 @@ fun PantallaLogin(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
     // Credenciales simuladas (Hardcoded)
     val correoCorrecto = "admin@veterinaria.com"
     val passwordCorrecta = "1234"
+
+    // Función de login reutilizable
+    val realizarLogin = {
+        if (correo == correoCorrecto && password == passwordCorrecta) {
+            onLoginSuccess()
+        } else {
+            errorLogin = true
+            Toast.makeText(context, "Error de autenticación", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -104,7 +118,10 @@ fun PantallaLogin(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
             label = { Text("Correo Electrónico") },
             leadingIcon = { Icon(Icons.Default.Email, null) },
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
             isError = errorLogin
         )
 
@@ -129,7 +146,16 @@ fun PantallaLogin(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    realizarLogin()
+                }
+            ),
             isError = errorLogin
         )
 
@@ -154,14 +180,7 @@ fun PantallaLogin(modifier: Modifier = Modifier, onLoginSuccess: () -> Unit) {
 
         // Botón Login
         Button(
-            onClick = {
-                if (correo == correoCorrecto && password == passwordCorrecta) {
-                    onLoginSuccess()
-                } else {
-                    errorLogin = true
-                    Toast.makeText(context, "Error de autenticación", Toast.LENGTH_SHORT).show()
-                }
-            },
+            onClick = realizarLogin,
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
             Text("INGRESAR")

@@ -2,113 +2,76 @@ package com.miempresa.veterinaria.viewmodel
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.miempresa.veterinaria.VeterinariaApplication
 import com.miempresa.veterinaria.data.VeterinariaRepository
-import com.miempresa.veterinaria.model.Cliente
-import com.miempresa.veterinaria.model.Consulta
-import com.miempresa.veterinaria.model.Mascota
-import com.miempresa.veterinaria.model.Veterinario
+import com.miempresa.veterinaria.model.*
 import kotlinx.coroutines.launch
 
-class MainViewModel : ViewModel() {
-    private val repository = VeterinariaRepository()
+class MainViewModel(private val repository: VeterinariaRepository) : ViewModel() {
 
-    // Estados de la UI (Lo que se verá en pantalla)
     val clientes = mutableStateOf<List<Cliente>>(emptyList())
     val mascotas = mutableStateOf<List<Mascota>>(emptyList())
     val consultas = mutableStateOf<List<Consulta>>(emptyList())
     val veterinarios = mutableStateOf<List<Veterinario>>(emptyList())
 
-    val isLoading = mutableStateOf(false) // Para mostrar cargando
-
     var busquedaCliente = mutableStateOf("")
     var busquedaMascota = mutableStateOf("")
 
     init {
-        cargarDatos()
+        viewModelScope.launch { repository.clientes.collect { clientes.value = it } }
+        viewModelScope.launch { repository.mascotas.collect { mascotas.value = it } }
+        viewModelScope.launch { repository.consultas.collect { consultas.value = it } }
+        veterinarios.value = repository.obtenerVeterinarios()
     }
 
-    private fun cargarDatos() {
-        // Usamos viewModelScope para ejecutar tareas en segundo plano (Corrutinas)
-        viewModelScope.launch {
-            isLoading.value = true
+    // --- Clientes ---
+    fun registrarCliente(cliente: Cliente) = viewModelScope.launch { repository.agregarCliente(cliente) }
+    fun borrarCliente(cliente: Cliente) = viewModelScope.launch { repository.eliminarCliente(cliente) }
+    fun editarCliente(antiguo: Cliente, nuevo: Cliente) = viewModelScope.launch { repository.actualizarCliente(antiguo, nuevo) }
 
-            // Cargamos datos del repositorio
-            clientes.value = repository.obtenerClientes()
-            mascotas.value = repository.obtenerMascotas()
-            consultas.value = repository.obtenerConsultas()
-            veterinarios.value = repository.obtenerVeterinarios()
+    // --- Mascotas ---
+    fun registrarMascota(mascota: Mascota) = viewModelScope.launch { repository.agregarMascota(mascota) }
 
-            isLoading.value = false
-        }
+    // ESTA FALTABA:
+    fun editarMascota(antigua: Mascota, nueva: Mascota) = viewModelScope.launch {
+        // Preservamos el ID de la antigua para que Room sepa cuál actualizar
+        val mascotaConId = nueva.copy(id = antigua.id)
+        repository.actualizarMascota(antigua, mascotaConId)
     }
 
-    // Funciones públicas para agregar datos desde la UI
-    fun registrarCliente(cliente: Cliente) {
-        repository.agregarCliente(cliente)
-        // Actualizamos la lista observable
-        viewModelScope.launch { clientes.value = repository.obtenerClientes() }
-    }
+    // ESTA FALTABA:
+    fun borrarMascota(mascota: Mascota) = viewModelScope.launch { repository.eliminarMascota(mascota) }
 
-    fun registrarMascota(mascota: Mascota) {
-        repository.agregarMascota(mascota)
-        viewModelScope.launch { mascotas.value = repository.obtenerMascotas() }
-    }
+    // --- Consultas ---
+    // ESTA FALTABA:
+    fun agendarConsulta(consulta: Consulta) = viewModelScope.launch { repository.agregarConsulta(consulta) }
 
-    fun agendarConsulta(consulta: Consulta) {
-        repository.agregarConsulta(consulta)
-        viewModelScope.launch { consultas.value = repository.obtenerConsultas() }
-    }
+    // ESTA FALTABA:
+    fun borrarConsulta(consulta: Consulta) = viewModelScope.launch { repository.eliminarConsulta(consulta) }
 
-    fun borrarCliente(cliente: Cliente) {
-        repository.eliminarCliente(cliente)
-        // Actualizamos todas las listas porque borrar un cliente puede borrar mascotas
-        viewModelScope.launch {
-            clientes.value = repository.obtenerClientes()
-            mascotas.value = repository.obtenerMascotas()
-        }
-    }
-
-    fun borrarMascota(mascota: Mascota) {
-        repository.eliminarMascota(mascota)
-        viewModelScope.launch { mascotas.value = repository.obtenerMascotas() }
-    }
-
-    fun borrarConsulta(consulta: Consulta) {
-        repository.eliminarConsulta(consulta)
-        viewModelScope.launch { consultas.value = repository.obtenerConsultas() }
-    }
-
-    fun editarCliente(antiguo: Cliente, nuevo: Cliente) {
-        repository.actualizarCliente(antiguo, nuevo)
-        viewModelScope.launch {
-            clientes.value = repository.obtenerClientes()
-            mascotas.value = repository.obtenerMascotas() // Actualizar mascotas también
-        }
-    }
-
-    fun editarMascota(antigua: Mascota, nueva: Mascota) {
-        repository.actualizarMascota(antigua, nueva)
-        viewModelScope.launch { mascotas.value = repository.obtenerMascotas() }
-    }
+    // --- Filtros ---
     fun obtenerClientesFiltrados(): List<Cliente> {
         val query = busquedaCliente.value.lowercase().trim()
         if (query.isEmpty()) return clientes.value
-
-        return clientes.value.filter { cliente ->
-            cliente.nombre.lowercase().contains(query) ||
-                    cliente.rut.contains(query)
-        }
+        return clientes.value.filter { it.nombre.lowercase().contains(query) || it.rut.contains(query) }
     }
 
-    // 3. Función para filtrar Mascotas (por Nombre o Tipo)
     fun obtenerMascotasFiltradas(): List<Mascota> {
         val query = busquedaMascota.value.lowercase().trim()
         if (query.isEmpty()) return mascotas.value
+        return mascotas.value.filter { it.nombre.lowercase().contains(query) || it.tipo.lowercase().contains(query) }
+    }
 
-        return mascotas.value.filter { mascota ->
-            mascota.nombre.lowercase().contains(query) ||
-                    mascota.tipo.lowercase().contains(query)
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as VeterinariaApplication)
+                MainViewModel(application.repository)
+            }
         }
     }
 }
