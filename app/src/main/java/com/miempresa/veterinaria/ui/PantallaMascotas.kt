@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape // Nuevo import
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -15,19 +16,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip // Nuevo import
+import androidx.compose.ui.layout.ContentScale // Nuevo import
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+// Imports de Glide
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.miempresa.veterinaria.model.Cliente
 import com.miempresa.veterinaria.model.Mascota
 import com.miempresa.veterinaria.viewmodel.MainViewModel
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalGlideComposeApi::class) // Agregamos la opt-in de Glide
 @Composable
 fun PantallaMascotas(viewModel: MainViewModel) {
     val context = LocalContext.current
-    // Obtenemos el valor de la lista de clientes desde el State
     val listaClientes by viewModel.clientes
 
     var mascotaAEditar by remember { mutableStateOf<Mascota?>(null) }
@@ -53,7 +58,6 @@ fun PantallaMascotas(viewModel: MainViewModel) {
     Column(
         modifier = Modifier.fillMaxSize().animateContentSize()
     ) {
-        // Título dinámico con AnimatedContent
         AnimatedContent(
             targetState = mascotaAEditar == null,
             transitionSpec = {
@@ -78,13 +82,38 @@ fun PantallaMascotas(viewModel: MainViewModel) {
         }
         OutlinedTextField(value = edadStr, onValueChange = { edadStr = it }, label = { Text("Edad") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
+        // --- CAMBIO 1: Dropdown con Fotos ---
         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             OutlinedButton(onClick = { expandirDropdown = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(clienteSeleccionado?.nombre ?: "Seleccionar Dueño")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Si hay cliente seleccionado, mostramos su mini foto
+                    if (clienteSeleccionado?.fotoUri != null) {
+                        GlideImage(
+                            model = clienteSeleccionado?.fotoUri,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(clienteSeleccionado?.nombre ?: "Seleccionar Dueño")
+                }
             }
             DropdownMenu(expanded = expandirDropdown, onDismissRequest = { expandirDropdown = false }) {
                 listaClientes.forEach { cliente ->
-                    DropdownMenuItem(text = { Text(cliente.nombre) }, onClick = { clienteSeleccionado = cliente; expandirDropdown = false })
+                    DropdownMenuItem(
+                        leadingIcon = {
+                            // Foto del cliente en la lista desplegable
+                            GlideImage(
+                                model = cliente.fotoUri,
+                                contentDescription = null,
+                                modifier = Modifier.size(30.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        },
+                        text = { Text(cliente.nombre) },
+                        onClick = { clienteSeleccionado = cliente; expandirDropdown = false }
+                    )
                 }
             }
         }
@@ -93,14 +122,12 @@ fun PantallaMascotas(viewModel: MainViewModel) {
             Button(
                 onClick = {
                     if (nombre.isNotBlank() && clienteSeleccionado != null && edadStr.toIntOrNull() != null) {
-                        // CORRECCIÓN AQUÍ: Usamos argumentos nombrados para evitar errores con el 'id'
                         val nuevaMascota = Mascota(
                             nombre = nombre,
                             tipo = tipo,
                             raza = raza,
                             edad = edadStr.toInt(),
                             dueno = clienteSeleccionado!!
-                            // El id se pone en 0 automáticamente por defecto
                         )
 
                         if (mascotaAEditar == null) {
@@ -123,7 +150,6 @@ fun PantallaMascotas(viewModel: MainViewModel) {
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // Corrección: Accedemos al valor del State
         val textoBusqueda by viewModel.busquedaMascota
         OutlinedTextField(
             value = textoBusqueda,
@@ -144,14 +170,27 @@ fun PantallaMascotas(viewModel: MainViewModel) {
                             slideInVertically(tween(500, delayMillis = index * 50)) { it / 2 }
                 ) {
                     Card(elevation = CardDefaults.cardElevation(2.dp)) {
+                        // --- CAMBIO 2: Mostrar foto del dueño en la tarjeta de la mascota ---
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Foto del Dueño
+                            GlideImage(
+                                model = mascota.dueno.fotoUri,
+                                contentDescription = "Foto dueño",
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(mascota.nombre, fontWeight = FontWeight.Bold)
                                 Text("${mascota.tipo} - ${mascota.raza}", style = MaterialTheme.typography.bodySmall)
-                                Text("Dueño: ${mascota.dueno.nombre}", style = MaterialTheme.typography.labelSmall)
+                                Text("Dueño: ${mascota.dueno.nombre}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
                             IconButton(onClick = { mascotaAEditar = mascota }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.tertiary)

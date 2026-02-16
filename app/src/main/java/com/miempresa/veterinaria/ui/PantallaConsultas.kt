@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
@@ -14,9 +15,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.miempresa.veterinaria.model.*
 import com.miempresa.veterinaria.viewmodel.MainViewModel
 import java.time.Instant
@@ -25,7 +30,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
 @Composable
 fun PantallaConsultas(viewModel: MainViewModel) {
     val context = LocalContext.current
@@ -40,15 +45,12 @@ fun PantallaConsultas(viewModel: MainViewModel) {
     var horaSel by remember { mutableStateOf<LocalTime?>(null) }
     var motivo by remember { mutableStateOf("") }
 
-    // Estados para Dropdowns y Dialogs
     var expandirMascota by remember { mutableStateOf(false) }
     var expandirVet by remember { mutableStateOf(false) }
     var mostrarCalendario by remember { mutableStateOf(false) }
 
-    // Calcular horas disponibles dinámicamente
     val horasDisponibles = remember(vetSel, fechaSel, listaConsultas) {
         val disponibles = vetSel?.obtenerHorasDisponibles(fechaSel, listaConsultas) ?: emptyList()
-        // Filtro adicional: si es hoy, no mostrar horas pasadas
         if (fechaSel == LocalDate.now()) {
             disponibles.filter { it.isAfter(LocalTime.now()) }
         } else {
@@ -59,7 +61,7 @@ fun PantallaConsultas(viewModel: MainViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Agendar Consulta", style = MaterialTheme.typography.headlineSmall)
 
-        // 1. Selección de Mascota
+        // 1. Selección de Mascota (Muestra foto del dueño si existe)
         Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             OutlinedButton(onClick = { expandirMascota = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(mascotaSel?.nombre ?: "Seleccionar Paciente (Mascota)")
@@ -67,6 +69,14 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             DropdownMenu(expanded = expandirMascota, onDismissRequest = { expandirMascota = false }) {
                 listaMascotas.forEach { mascota ->
                     DropdownMenuItem(
+                        leadingIcon = {
+                            GlideImage(
+                                model = mascota.dueno.fotoUri,
+                                contentDescription = null,
+                                modifier = Modifier.size(30.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        },
                         text = { Text("${mascota.nombre} (${mascota.dueno.nombre})") },
                         onClick = { mascotaSel = mascota; expandirMascota = false }
                     )
@@ -74,19 +84,41 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             }
         }
 
-        // 2. Selección de Veterinario
+        // 2. Selección de Veterinario (CON FOTO DE API)
         Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             OutlinedButton(onClick = { expandirVet = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(vetSel?.nombre ?: "Seleccionar Veterinario")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (vetSel?.fotoUrl != null) {
+                        GlideImage(
+                            model = vetSel?.fotoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(vetSel?.nombre ?: "Seleccionar Veterinario")
+                }
             }
             DropdownMenu(expanded = expandirVet, onDismissRequest = { expandirVet = false }) {
                 listaVeterinarios.forEach { vet ->
-                    DropdownMenuItem(text = { Text(vet.nombre) }, onClick = { vetSel = vet; horaSel = null; expandirVet = false })
+                    DropdownMenuItem(
+                        leadingIcon = {
+                            GlideImage(
+                                model = vet.fotoUrl,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        },
+                        text = { Text(vet.nombre) },
+                        onClick = { vetSel = vet; horaSel = null; expandirVet = false }
+                    )
                 }
             }
         }
 
-        // 3. Fecha (Calendario)
+        // 3. Fecha
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
             Text("Fecha: ${fechaSel.format(DateTimeFormatter.ISO_LOCAL_DATE)}", modifier = Modifier.weight(1f))
             IconButton(onClick = { mostrarCalendario = true }) {
@@ -119,18 +151,14 @@ fun PantallaConsultas(viewModel: MainViewModel) {
             }
         }
 
-        // 4. Horas Disponibles
+        // 4. Horas
         Text("Horarios Disponibles:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         if (vetSel == null) {
             Text("Selecciona un veterinario primero", color = MaterialTheme.colorScheme.secondary)
         } else if (horasDisponibles.isEmpty()) {
-            Text("No hay horas disponibles para esta fecha", color = MaterialTheme.colorScheme.error)
+            Text("No hay horas disponibles", color = MaterialTheme.colorScheme.error)
         } else {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(horasDisponibles) { hora ->
                     FilterChip(
                         selected = horaSel == hora,
@@ -155,66 +183,38 @@ fun PantallaConsultas(viewModel: MainViewModel) {
                         tipoConsulta = TipoConsulta.GENERAL,
                         motivoConsulta = motivo
                     )
-
                     viewModel.agendarConsulta(nuevaConsulta)
                     Toast.makeText(context, "Cita Agendada", Toast.LENGTH_SHORT).show()
                     motivo = ""; horaSel = null
-                } else {
-                    Toast.makeText(context, "Faltan datos", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             enabled = horaSel != null
-        ) {
-            Text("Confirmar Cita")
-        }
+        ) { Text("Confirmar Cita") }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // Lista de Citas Agendadas
+        // Lista de Citas con IMÁGENES
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(listaConsultas) { consulta ->
                 Card(elevation = CardDefaults.cardElevation(4.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // Imagen del Veterinario asignado
+                        GlideImage(
+                            model = consulta.veterinario.fotoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.size(50.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                             Text("${consulta.fecha} - ${consulta.hora}", fontWeight = FontWeight.Bold)
-                            Text("Paciente: ${consulta.mascota.nombre}", fontWeight = FontWeight.Medium)
-                            Text("Dueño: ${consulta.mascota.dueno.nombre}", style = MaterialTheme.typography.bodySmall)
-                            Text("Vet: ${consulta.veterinario.nombre}", style = MaterialTheme.typography.bodySmall)
-                            Text("Motivo: ${consulta.motivoConsulta}", style = MaterialTheme.typography.bodySmall)
+                            Text("Paciente: ${consulta.mascota.nombre}", style = MaterialTheme.typography.bodyMedium)
+                            Text("Vet: ${consulta.veterinario.nombre}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
 
-                        Row {
-                            IconButton(onClick = {
-                                val resumen = """
-                                    📅 Cita Veterinaria Agendada
-                                    Fecha: ${consulta.fecha} a las ${consulta.hora}
-                                    Paciente: ${consulta.mascota.nombre}
-                                    Dueño: ${consulta.mascota.dueno.nombre}
-                                    Veterinario: ${consulta.veterinario.nombre}
-                                    Motivo: ${consulta.motivoConsulta}
-                                """.trimIndent()
-
-                                val intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, resumen)
-                                    type = "text/plain"
-                                }
-                                val shareIntent = Intent.createChooser(intent, "Compartir Cita")
-                                context.startActivity(shareIntent)
-                            }) {
-                                Icon(Icons.Default.Share, contentDescription = "Compartir", tint = MaterialTheme.colorScheme.primary)
-                            }
-
-                            IconButton(onClick = { viewModel.borrarConsulta(consulta) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = MaterialTheme.colorScheme.error)
-                            }
+                        IconButton(onClick = { viewModel.borrarConsulta(consulta) }) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }

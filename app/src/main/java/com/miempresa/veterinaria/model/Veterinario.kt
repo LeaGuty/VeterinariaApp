@@ -6,7 +6,8 @@ import java.time.LocalTime
 data class Veterinario(
     val nombre: String,
     val especialidad: String,
-    val horario: List<LocalTime> = generarHorarioPorDefecto()
+    val horario: List<LocalTime> = generarHorarioPorDefecto(),
+    val fotoUrl: String? = null
 ) {
     companion object {
         fun generarHorarioPorDefecto(): List<LocalTime> {

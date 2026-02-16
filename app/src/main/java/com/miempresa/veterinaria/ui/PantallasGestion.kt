@@ -7,22 +7,27 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape // NUEVO: Para la imagen redonda
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip // NUEVO: Para recortar la imagen
+import androidx.compose.ui.layout.ContentScale // NUEVO: Para ajustar la imagen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+// NUEVO: Imports de Glide
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.miempresa.veterinaria.model.Cliente
 import com.miempresa.veterinaria.util.Validaciones
 import com.miempresa.veterinaria.viewmodel.MainViewModel
@@ -48,7 +53,7 @@ fun PantallaGestion(viewModel: MainViewModel) {
         Crossfade(
             targetState = pestanaActual,
             animationSpec = tween(durationMillis = 500),
-            label = "CestañasTransition"
+            label = "PestanasTransition"
         ) { targetPestana ->
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 when (targetPestana) {
@@ -98,12 +103,10 @@ fun FormularioCliente(
             Validaciones.esTelefonoValido(telefono) &&
             Validaciones.esRutValido(rut)
 
-    // .animateContentSize() para cambios fluidos de tamaño
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.animateContentSize()
     ) {
-        // AnimatedContent para el título dinámico
         AnimatedContent(
             targetState = clienteAEditar == null,
             transitionSpec = {
@@ -148,16 +151,25 @@ fun FormularioCliente(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
-                    val nuevoCliente = Cliente(nombre, correo, telefono, rut)
                     if (clienteAEditar == null) {
-                        viewModel.registrarCliente(nuevoCliente)
+                        // NUEVO: Usamos la función que busca la foto en la API
+                        viewModel.registrarClienteConFoto(nombre, correo, telefono, rut)
                         Toast.makeText(context, "Cliente Guardado", Toast.LENGTH_SHORT).show()
+                        // Limpiamos campos solo al crear
+                        nombre = ""; correo = ""; telefono = ""; rut = ""
                     } else {
-                        viewModel.editarCliente(clienteAEditar, nuevoCliente)
+                        // NUEVO: Al editar, preservamos la foto original que ya tenía el cliente
+                        val clienteActualizado = Cliente(
+                            nombre = nombre,
+                            correo = correo,
+                            telefono = telefono,
+                            rut = rut,
+                            fotoUri = clienteAEditar.fotoUri // Importante para no perder la foto
+                        )
+                        viewModel.editarCliente(clienteAEditar, clienteActualizado)
                         Toast.makeText(context, "Cliente Actualizado", Toast.LENGTH_SHORT).show()
                         onLimpiarEdicion()
                     }
-                    if (clienteAEditar == null) { nombre = ""; correo = ""; telefono = ""; rut = "" }
                 },
                 modifier = Modifier.weight(1f),
                 enabled = formularioValido
@@ -174,6 +186,7 @@ fun FormularioCliente(
     }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class) // NUEVO: Requerido para GlideImage
 @Composable
 fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
     val listaFiltrada = viewModel.obtenerClientesFiltrados()
@@ -193,7 +206,6 @@ fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             itemsIndexed(listaFiltrada) { index, cliente ->
-                // Animación de entrada para cada tarjeta
                 var visible by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) { visible = true }
 
@@ -207,6 +219,18 @@ fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // NUEVO: Componente Glide para mostrar la foto del cliente
+                            GlideImage(
+                                model = cliente.fotoUri,
+                                contentDescription = "Foto de ${cliente.nombre}",
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(cliente.nombre, fontWeight = FontWeight.Bold)
                                 Text(cliente.rut, style = MaterialTheme.typography.bodySmall)
@@ -235,7 +259,6 @@ fun ListaClientes(viewModel: MainViewModel, onEditar: (Cliente) -> Unit) {
         }
     }
 
-    // Diálogo de confirmación para eliminar
     clienteAEliminar?.let { cliente ->
         AlertDialog(
             onDismissRequest = { clienteAEliminar = null },

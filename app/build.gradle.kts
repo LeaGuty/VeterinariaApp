@@ -66,4 +66,17 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler) // <--- ¡AQUÍ FALTABA EL PARÉNTESIS DE CIERRE!
+
+    // Retrofit para la API
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // Glide para las imágenes
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    // Integración de Glide con Compose (ya que usas Jetpack Compose)
+    implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
+    // Paso 4: LeakCanary para detección de fugas de memoria
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+    //debugImplementation("com.squareup.leakcanary:leakcanary-android-no-op:2.14")
+
 }

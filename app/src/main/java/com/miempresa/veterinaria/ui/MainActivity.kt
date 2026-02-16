@@ -30,6 +30,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // ⚠️ CAUSANDO LA FUGA INTENCIONALMENTE
+        // Le entregamos "this" (la MainActivity) al objeto estático.
+        // Aunque cierres la pantalla, SimuladorFuga seguirá apuntando a ella.
+        //com.miempresa.veterinaria.util.SimuladorFuga.contextoAtrapado = this
         setContent {
             VeterinariaAppTheme {
                 Surface(

@@ -10,6 +10,9 @@ import com.miempresa.veterinaria.model.TipoConsulta
 import com.miempresa.veterinaria.model.Veterinario
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.miempresa.veterinaria.data.remote.RetrofitClient
 
 class VeterinariaRepository(private val dao: VeterinariaDao) {
 
@@ -117,7 +120,7 @@ class VeterinariaRepository(private val dao: VeterinariaDao) {
         }
     }
 
-    suspend fun agregarConsulta(consulta: Consulta) {
+    suspend fun agregarConsulta(consulta: Consulta) = withContext(Dispatchers.IO) {
         val entity = ConsultaEntity(
             id = consulta.id,
             mascotaId = consulta.mascota.id,
@@ -130,7 +133,7 @@ class VeterinariaRepository(private val dao: VeterinariaDao) {
         dao.insertarConsulta(entity)
     }
 
-    suspend fun eliminarConsulta(consulta: Consulta) {
+    suspend fun eliminarConsulta(consulta: Consulta) = withContext(Dispatchers.IO) {
         val entity = ConsultaEntity(
             id = consulta.id,
             mascotaId = consulta.mascota.id,
@@ -143,6 +146,36 @@ class VeterinariaRepository(private val dao: VeterinariaDao) {
         dao.eliminarConsulta(entity)
     }
 
+    suspend fun obtenerVeterinariosConFotos(): List<Veterinario> = withContext(Dispatchers.IO) {
+        val nombres = listOf("Dr. Simi", "Dra. Polo", "Dr. House", "Dra. Quinn")
+
+        nombres.map { nombre ->
+            try {
+                // Llamada a la API de RandomUser
+                val response = RetrofitClient.instancia.obtenerUsuarioAleatorio()
+                val urlImagen = response.results.firstOrNull()?.picture?.large
+
+                // CORRECCIÓN: Pasamos el nombre, la especialidad y la foto.
+                // El horario se cargará con su valor por defecto 'generarHorarioPorDefecto()'
+                // automáticamente si no lo pasamos, o podemos pasarlo explícitamente.
+                Veterinario(
+                    nombre = nombre,
+                    especialidad = "General",
+                    fotoUrl = urlImagen
+                )
+            } catch (e: Exception) {
+                // Logueamos el error para debugging (Paso 3)
+                android.util.Log.e("VeterinariaRepo", "Error al obtener foto para $nombre", e)
+
+                // Devolvemos el veterinario con los datos básicos en caso de fallo de red
+                Veterinario(
+                    nombre = nombre,
+                    especialidad = "General",
+                    fotoUrl = null
+                )
+            }
+        }
+    }
     fun obtenerVeterinarios(): List<Veterinario> {
         return listOf(Veterinario("Dr. Simi", "General"), Veterinario("Dra. Polo", "Cirugía"))
     }
